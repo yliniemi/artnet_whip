@@ -19,22 +19,32 @@ FASTLED_USING_NAMESPACE
 
 //The following has to be adapted to your specifications
 #define NUM_LEDS LED_WIDTH*LED_HEIGHT
-CRGB leds[NUM_LEDS];
+CRGB ledStrip[LED_HEIGHT];
 
-#ifdef USING_LED_BUFFER
-CRGB ledsBuffer[NUM_LEDS];
-#endif
+CRGB ledsArtnet[NUM_LEDS];
 
 int maxCurrent = MAX_CURRENT;         // in milliwatts. can be changed later on with mqtt commands. be careful with this one. it might be best to disable this funvtionality altogether
 int universeSize = UNIVERSE_SIZE;
 
 ArtnetESP32 artnet;
 
+TaskHandle_t task1;
 
 char primarySsid[64];
 char primaryPsk[64];
 char hostname[64] = HOSTNAME;
 
+void cycleLedStrips(void * parameter)
+{
+  while(1)
+  {
+    static int currentStrip = 0;
+    currentStrip++;
+    if (currentStrip >= LED_WIDTH) currentStrip = 0;
+    memcpy(&ledStrip[0], &ledsArtnet[currentStrip * LED_HEIGHT], sizeof(CRGB) * LED_HEIGHT);
+    FastLED.show();
+  }
+}
 
 void displayfunction()
 {  
@@ -46,23 +56,17 @@ void displayfunction()
   static unsigned long oldMicros = 0;
   unsigned long frameTime = micros() - oldMicros;
   static unsigned long biggestFrameTime = 0;
+  static unsigned long delay = 0;
+
   if (biggestFrameTime < frameTime) biggestFrameTime = frameTime;
   else if (biggestFrameTime == -1) biggestFrameTime = 0;
   
-  static unsigned long delay;
-  if (frameTime > 6000000) delayMicroseconds(expectedTime);
-  else if (frameTime < expectedTime)
+  if (frameTime < expectedTime)
   {
     delay = expectedTime - frameTime;
-    delayMicroseconds(delay);
   }
   
-  #ifdef USING_LED_BUFFER
-  memcpy(&leds[0], &ledsBuffer[0], sizeof(CRGB) * NUM_LEDS);
-  #endif
-  
   oldMicros = micros();
-  FastLED.show();
   unsigned long delta = micros() - oldMicros;
   static unsigned long biggestDelta = 0;
   if (biggestDelta < delta) biggestDelta = delta;
@@ -74,13 +78,14 @@ void displayfunction()
     Serial.println(String("Delay was ") + delay + " microseconds");
     Serial.println(String("frameTime was ") + biggestFrameTime + " microseconds");
     Serial.printf("nb frames read: %d  nb of incomplete frames:%d lost:%.2f %%\n\r",artnet.frameslues,artnet.lostframes,(float)(artnet.lostframes*100)/artnet.frameslues);
+    #ifdef USING_SERIALOTA
     SerialOTA.println();
     SerialOTA.println(String("I'm running on core ") + xPortGetCoreID());
     SerialOTA.println(String("FastLED.show() took ") + biggestDelta + " microseconds");
     SerialOTA.println(String("Delay was ") + delay + " microseconds");
     SerialOTA.println(String("frameTime was ") + biggestFrameTime + " microseconds");
     SerialOTA.printf("nb frames read: %d  nb of incomplete frames:%d lost:%.2f %%\n\r",artnet.frameslues,artnet.lostframes,(float)(artnet.lostframes*100)/artnet.frameslues);
-    //here the buffer is the led array hence a simple FastLED.show() is enough to display the array
+    #endif
     biggestDelta = 0;
     biggestFrameTime = -1;
   }
@@ -186,23 +191,25 @@ void setup()
   setupSerialOTA(hostname);
   #endif
 
-  FastLED.addLeds<NEOPIXEL, PIN_0>(leds, 0*LED_HEIGHT, LED_HEIGHT);
+  FastLED.addLeds<NEOPIXEL, PIN_0>(ledStrip, 0*LED_HEIGHT, LED_HEIGHT);
   
   randomSeed(esp_random());
   set_max_power_in_volts_and_milliamps(5, maxCurrent);   // in my current setup the maximum current is 50A
   
   artnet.setFrameCallback(&displayfunction); //set the function that will be called back a frame has been received
   
-  #ifndef USING_LED_BUFFER
-  artnet.setLedsBuffer((uint8_t*)leds); //set the buffer to put the frame once a frame has been received
-  #endif
-  
-  #ifdef USING_LED_BUFFER
-  artnet.setLedsBuffer((uint8_t*)ledsBuffer); //set the buffer to put the frame once a frame has been received
-  #endif
+  artnet.setLedsBuffer((uint8_t*)ledsArtnet); //set the buffer to put the frame once a frame has been received
   
   artnet.begin(NUM_LEDS, universeSize); //configure artnet
-  
+
+  xTaskCreatePinnedToCore(
+      cycleLedStrips, /* Function to implement the task */
+      "cycleLedStrips", /* Name of the task */
+      1000,  /* Stack size in words */
+      NULL,  /* Task input parameter */
+      100,  /* Priority of the task */
+      &task1,  /* Task handle. */
+      1); /* Core where the task should run */
 }
 
 void loop()
