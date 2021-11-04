@@ -3,5 +3,5 @@
 	"psk": "placeholderPassword",
 	"hostname": "esp32 artnet",
 	"universeSize": 144,
-	"maxCurrent": 50000
+	"maxCurrent": 4000
 }

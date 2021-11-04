@@ -40,8 +40,8 @@ void displayfunction()
 {  
   // this is here so that we don't call Fastled.show() too fast. things froze if we did that
   // perhaps I should use microseconds here. I could shave off a couple of milliseconds
-  // unsigned long expectedTime = LED_HEIGHT * 24 * 11 / (800 * 10) + 2;     // 1 ms for the reset pulse and (takes 50 us. better safe than sorry) 1 ms rounding 11/10 added 10 % extra just to be on the safe side
   static unsigned long expectedTime = LED_HEIGHT * 24 * 12 / 8 + 500;     // 500 us for the reset pulse and (takes 50 us. better safe than sorry) also added 20 % extra just to be on the safe side
+
   
   static unsigned long oldMicros = 0;
   unsigned long frameTime = micros() - oldMicros;
@@ -69,11 +69,13 @@ void displayfunction()
   if (artnet.frameslues%1000==0)
   {
     Serial.println();
+    Serial.println(String("I'm running on core ") + xPortGetCoreID());
     Serial.println(String("FastLED.show() took ") + biggestDelta + " microseconds");
     Serial.println(String("Delay was ") + delay + " microseconds");
     Serial.println(String("frameTime was ") + biggestFrameTime + " microseconds");
     Serial.printf("nb frames read: %d  nb of incomplete frames:%d lost:%.2f %%\n\r",artnet.frameslues,artnet.lostframes,(float)(artnet.lostframes*100)/artnet.frameslues);
     SerialOTA.println();
+    SerialOTA.println(String("I'm running on core ") + xPortGetCoreID());
     SerialOTA.println(String("FastLED.show() took ") + biggestDelta + " microseconds");
     SerialOTA.println(String("Delay was ") + delay + " microseconds");
     SerialOTA.println(String("frameTime was ") + biggestFrameTime + " microseconds");
@@ -186,28 +188,6 @@ void setup()
 
   FastLED.addLeds<NEOPIXEL, PIN_0>(leds, 0*LED_HEIGHT, LED_HEIGHT);
   
-  #if LED_WIDTH > 1
-  FastLED.addLeds<NEOPIXEL, PIN_1>(leds, 1*LED_HEIGHT, LED_HEIGHT);
-  #endif
-  #if LED_WIDTH > 2
-  FastLED.addLeds<NEOPIXEL, PIN_2>(leds, 2*LED_HEIGHT, LED_HEIGHT);
-  #endif
-  #if LED_WIDTH > 3
-  FastLED.addLeds<NEOPIXEL, PIN_3>(leds, 3*LED_HEIGHT, LED_HEIGHT);
-  #endif
-  #if LED_WIDTH > 4
-  FastLED.addLeds<NEOPIXEL, PIN_4>(leds, 4*LED_HEIGHT, LED_HEIGHT);
-  #endif
-  #if LED_WIDTH > 5
-  FastLED.addLeds<NEOPIXEL, PIN_5>(leds, 5*LED_HEIGHT, LED_HEIGHT);
-  #endif
-  #if LED_WIDTH > 6
-  FastLED.addLeds<NEOPIXEL, PIN_6>(leds, 6*LED_HEIGHT, LED_HEIGHT);
-  #endif
-  #if LED_WIDTH > 7
-  FastLED.addLeds<NEOPIXEL, PIN_7>(leds, 7*LED_HEIGHT, LED_HEIGHT);
-  #endif
-  
   randomSeed(esp_random());
   set_max_power_in_volts_and_milliamps(5, maxCurrent);   // in my current setup the maximum current is 50A
   
@@ -222,8 +202,7 @@ void setup()
   #endif
   
   artnet.begin(NUM_LEDS, universeSize); //configure artnet
-
-
+  
 }
 
 void loop()
@@ -231,7 +210,6 @@ void loop()
   reconnectToWifiIfNecessary();
   SerialOTAhandle();
   ArduinoOTA.handle();
-
   
   artnet.readFrame(); //ask to read a full frame
 }
