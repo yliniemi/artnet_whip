@@ -1,6 +1,6 @@
 #include "OTA.h"
 
-void setupOTA(char* hostname)
+void setupOTA(char* hostname, int OTArounds)
 {
   // Port defaults to 3232
   // ArduinoOTA.setPort(3232);
@@ -48,13 +48,19 @@ void setupOTA(char* hostname)
   ArduinoOTA.begin();
   
   // this loop is here so that if your program freezes you can still update over the air
-  for (int i = 1; i < OTA_ROUNDS; i++)
+  for (int i = 1; i < OTArounds; i++)
   {
     Serial.print(i);
     Serial.print("/");
-    Serial.print(OTA_ROUNDS);
+    Serial.print(OTArounds);
     Serial.println(" round of initial OTA");
     ArduinoOTA.handle();
     delay(1000);
   }
+}
+
+
+void setupOTA(char* hostname)
+{
+  setupOTA(hostname, OTA_ROUNDS);
 }

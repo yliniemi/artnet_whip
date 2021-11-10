@@ -3,5 +3,6 @@
 	"psk": "placeholderPassword",
 	"hostname": "esp32 artnet",
 	"universeSize": 144,
+	"OTArounds": 0,
 	"maxCurrent": 4000
 }

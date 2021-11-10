@@ -6,6 +6,8 @@
 
 #include <ArduinoOTA.h>
 
+void setupOTA(char* hostname, int OTArounds);
+
 void setupOTA(char* hostname);
 
 #endif

@@ -25,18 +25,21 @@ void reconnectToWifiIfNecessary()
   static unsigned long oldMillis = 0;
   unsigned long newMillis = millis();
   static unsigned long previousTime = 0;
-  if ((millis() - previousTime > 10000) || (millis() < previousTime))
+  static unsigned long previousTimePrinted = 0;
+  static String reconnectedAt = "";
+  
+  if ((millis() - previousTimePrinted > 60000) || (millis() < previousTimePrinted))
   {
-    static String reconnectedAt = "";
-    static bool beenDisconnected = false;
-    previousTime = millis();
+    
+    previousTimePrinted = millis();
+
     Serial.println();
     Serial.println(reconnectedAt);
     Serial.print("WiFi connections status: ");
     Serial.println(WiFi.status());
-    Serial.print(String("I have been on for ") + previousTime / (1000 * 60 * 60) + " hours, ");
-    Serial.print(String((previousTime / (1000 * 60)) % 60) + " minutes and ");
-    Serial.println(String((previousTime / 1000) % 60) + " seconds");
+    Serial.print(String("I have been on for ") + previousTimePrinted / (1000 * 60 * 60) + " hours, ");
+    Serial.print(String((previousTimePrinted / (1000 * 60)) % 60) + " minutes and ");
+    Serial.println(String((previousTimePrinted / 1000) % 60) + " seconds");
     Serial.println();
 
     #ifdef USING_SERIALOTA
@@ -44,12 +47,18 @@ void reconnectToWifiIfNecessary()
     SerialOTA.println(reconnectedAt);
     SerialOTA.print("WiFi connections status: ");
     SerialOTA.println(WiFi.status());
-    SerialOTA.print(String("I have been on for ") + previousTime / (1000 * 60 * 60) + " hours, ");
-    SerialOTA.print(String((previousTime / (1000 * 60)) % 60) + " minutes and ");
-    SerialOTA.println(String((previousTime / 1000) % 60) + " seconds");
+    SerialOTA.print(String("I have been on for ") + previousTimePrinted / (1000 * 60 * 60) + " hours, ");
+    SerialOTA.print(String((previousTimePrinted / (1000 * 60)) % 60) + " minutes and ");
+    SerialOTA.println(String((previousTimePrinted / 1000) % 60) + " seconds");
     SerialOTA.println();
     #endif
-    
+  }  
+  
+  if ((millis() - previousTime > 10000) || (millis() < previousTime))
+  {
+    static bool beenDisconnected = false;
+    previousTime = millis();
+
     static int tryNumber = 0;
     if (WiFi.status() != WL_CONNECTED)
     {

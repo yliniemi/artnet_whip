@@ -23,30 +23,57 @@ CRGB ledStrip[LED_HEIGHT];
 
 CRGB ledsArtnet[NUM_LEDS];
 
+bool newFrame = true;
+
 int maxCurrent = MAX_CURRENT;         // in milliwatts. can be changed later on with mqtt commands. be careful with this one. it might be best to disable this funvtionality altogether
 int universeSize = UNIVERSE_SIZE;
 
 ArtnetESP32 artnet;
 
-TaskHandle_t task1;
+TaskHandle_t task1, task2;
 
 char primarySsid[64];
 char primaryPsk[64];
 char hostname[64] = HOSTNAME;
+int OTArounds = OTA_ROUNDS;
 
-void cycleLedStrips(void * parameter)
+
+void cycleLedStrips(void* parameter)
 {
   while(1)
   {
     static int currentStrip = 0;
     currentStrip++;
-    if (currentStrip >= LED_WIDTH) currentStrip = 0;
+    if (currentStrip >= LED_WIDTH)
+    {
+      currentStrip = 0;
+      // artnet.readWithoutWaiting(); //ask to read a full frame
+      if (newFrame)
+      {
+        artnet.readFrame(); //ask to read a full frame
+        newFrame = false;
+      }
+    }
     memcpy(&ledStrip[0], &ledsArtnet[currentStrip * LED_HEIGHT], sizeof(CRGB) * LED_HEIGHT);
     FastLED.show();
   }
 }
 
-void displayfunction()
+
+void readFrame(void* parameter)
+{
+  while(1) artnet.readFrame(); //ask to read a full frame
+}
+
+
+void displayFunction()
+{
+  newFrame = true;
+}
+
+
+/*
+void displayFunction()
 {  
   // this is here so that we don't call Fastled.show() too fast. things froze if we did that
   // perhaps I should use microseconds here. I could shave off a couple of milliseconds
@@ -88,6 +115,31 @@ void displayfunction()
     #endif
     biggestDelta = 0;
     biggestFrameTime = -1;
+  }
+}
+*/
+
+
+void maintenance(void* parameter)
+{
+  while(1)
+  {
+    reconnectToWifiIfNecessary();
+    SerialOTAhandle();
+    ArduinoOTA.handle();
+    displayFunction();
+    static unsigned long previousTime = 0;
+    if ((millis() - previousTime > 60000) || (millis() < previousTime))
+    {
+      previousTime = millis();
+      Serial.println();
+      Serial.printf("nb frames read: %d  nb of incomplete frames:%d lost:%.2f %%\n\r",artnet.frameslues,artnet.lostframes,(float)(artnet.lostframes*100)/artnet.frameslues);
+      #ifdef USING_SERIALOTA
+      SerialOTA.println();
+      SerialOTA.printf("nb frames read: %d  nb of incomplete frames:%d lost:%.2f %%\n\r",artnet.frameslues,artnet.lostframes,(float)(artnet.lostframes*100)/artnet.frameslues);
+      #endif
+    }
+    delay(10000);    
   }
 }
 
@@ -149,6 +201,12 @@ bool loadConfig()
     Serial.println(String("hostname") + " = " + hostname);
   }
   
+  if (jsonBuffer.containsKey("OTArounds"))
+  {
+    OTArounds = jsonBuffer["OTArounds"];
+    Serial.println(String("OTArounds") + " = " + OTArounds);
+  }
+  
   if (jsonBuffer.containsKey("maxCurrent"))
   {
     maxCurrent = jsonBuffer["maxCurrent"];
@@ -185,7 +243,7 @@ void setup()
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
   
-  setupOTA(hostname);
+  setupOTA(hostname, OTArounds);
   
   #ifdef USING_SERIALOTA
   setupSerialOTA(hostname);
@@ -196,27 +254,35 @@ void setup()
   randomSeed(esp_random());
   set_max_power_in_volts_and_milliamps(5, maxCurrent);   // in my current setup the maximum current is 50A
   
-  artnet.setFrameCallback(&displayfunction); //set the function that will be called back a frame has been received
+  // artnet.setFrameCallback(&displayFunction); //set the function that will be called back a frame has been received
+  artnet.setFrameCallback(&displayFunction); //set the function that will be called back a frame has been received
   
   artnet.setLedsBuffer((uint8_t*)ledsArtnet); //set the buffer to put the frame once a frame has been received
   
   artnet.begin(NUM_LEDS, universeSize); //configure artnet
 
   xTaskCreatePinnedToCore(
-      cycleLedStrips, /* Function to implement the task */
-      "cycleLedStrips", /* Name of the task */
-      1000,  /* Stack size in words */
-      NULL,  /* Task input parameter */
-      100,  /* Priority of the task */
-      &task1,  /* Task handle. */
-      1); /* Core where the task should run */
+      maintenance, // Function to implement the task
+      "maintenance", // Name of the task
+      10000,  // Stack size in words
+      NULL,  // Task input parameter
+      0,  // Priority of the task
+      &task1,  // Task handle.
+      1); // Core where the task should run
+  
+  /*
+  xTaskCreatePinnedToCore(
+      readFrame, // Function to implement the task
+      "readFrame", // Name of the task
+      10000,  // Stack size in words
+      NULL,  // Task input parameter
+      0,  // Priority of the task
+      &task2,  // Task handle.
+      0); // Core where the task should run
+  */
 }
 
 void loop()
 {
-  reconnectToWifiIfNecessary();
-  SerialOTAhandle();
-  ArduinoOTA.handle();
-  
-  artnet.readFrame(); //ask to read a full frame
+  cycleLedStrips(NULL);
 }
