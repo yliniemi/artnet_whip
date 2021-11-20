@@ -2,7 +2,7 @@
 #define SETTINGS_H
 
 #define HOSTNAME "LEDwall"        // replace this with the name for this particular device. everyone deserves a unique name
-#define LED_WIDTH 75              // maximum with the height 144 is 125
+#define LED_WIDTH 32              // maximum with the height 144 is 125
 #define LED_HEIGHT 144
 #define MAX_CURRENT 4000          // maximum current in milliwatts. this is here so that your powersupply won't overheat or shutdown
 #define USING_SERIALOTA           // uncomment this if you are not using SerialOTA
